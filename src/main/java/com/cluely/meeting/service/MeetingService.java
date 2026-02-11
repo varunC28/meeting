@@ -6,6 +6,7 @@ import com.cluely.meeting.dto.MeetingDashboardDto;
 import com.cluely.meeting.dto.MeetingResponseDto;
 import com.cluely.meeting.dto.MeetingUpdateRequestDto;
 import com.cluely.meeting.entity.MeetingEntity;
+import com.cluely.meeting.entity.MeetingStatus;
 import com.cluely.meeting.mapper.MeetingMapper;
 import com.cluely.meeting.repository.MeetingRepository;
 
@@ -21,6 +22,8 @@ import com.cluely.user.entity.UserEntity;
 import com.cluely.user.mapper.UserMapper;
 import com.cluely.user.repository.UserRepository;
 
+import jakarta.transaction.Transactional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +36,7 @@ import static com.cluely.meeting.spec.MeetingSpecifications.*;
 import static com.cluely.security.SecurityUtils.getCurrentUserId;
 
 @Service
+@Transactional
 public class MeetingService {
 
         private final MeetingRepository repository;
@@ -144,7 +148,7 @@ public class MeetingService {
                 repository.save(meeting);
         }
 
-        // My Meetings
+        // Get My Meetings
         public Page<MeetingResponseDto> getMyMeetings(Pageable pageable) {
 
                 UUID userId = getCurrentUserId();
@@ -154,7 +158,7 @@ public class MeetingService {
                                 .map(MeetingMapper::toResponse);
         }
 
-        // Single meeting
+        // Get Single meeting
         public MeetingResponseDto getMyMeeting(UUID meetingId) {
 
                 UUID userId = getCurrentUserId();
@@ -165,4 +169,43 @@ public class MeetingService {
 
                 return MeetingMapper.toResponse(meeting);
         }
+
+        // Start a Meeting
+        public void startMeeting(UUID meetingId) {
+
+                UUID userId = getCurrentUserId();
+
+                MeetingEntity meeting = repository
+                                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+                                .orElseThrow(() -> new NotFoundException("Meeting not found"));
+
+                if (meeting.getStatus() != MeetingStatus.SCHEDULED) {
+                        throw new IllegalStateException(
+                                        "Only SCHEDULED meetings can be started. Current status: "
+                                                        + meeting.getStatus());
+                }
+
+                meeting.setStatus(MeetingStatus.LIVE);
+                meeting.setStartedAt(LocalDateTime.now());
+
+        }
+
+        // End a Meeting
+        public void endMeeting(UUID meetingId) {
+
+                UUID userId = getCurrentUserId();
+
+                MeetingEntity meeting = repository
+                                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+                                .orElseThrow(() -> new NotFoundException("Meeting not found"));
+
+                if (meeting.getStatus() != MeetingStatus.LIVE) {
+                        throw new IllegalStateException(
+                                        "Only LIVE meetings can be completed. Current status: " + meeting.getStatus());
+                }
+
+                meeting.setStatus(MeetingStatus.COMPLETED);
+                meeting.setEndedAt(LocalDateTime.now());
+        }
+
 }

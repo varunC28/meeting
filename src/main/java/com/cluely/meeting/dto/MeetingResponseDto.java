@@ -3,6 +3,8 @@ package com.cluely.meeting.dto;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.cluely.meeting.entity.MeetingStatus;
+
 public class MeetingResponseDto {
 
     private UUID meetingId;
@@ -12,6 +14,7 @@ public class MeetingResponseDto {
     private LocalDateTime endedAt;
     private String source;
     private LocalDateTime createdAt;
+    private MeetingStatus status;
 
     public UUID getMeetingId() {
         return meetingId;
@@ -68,4 +71,13 @@ public class MeetingResponseDto {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public MeetingStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(MeetingStatus status) {
+        this.status = status;
+    }
+
 }

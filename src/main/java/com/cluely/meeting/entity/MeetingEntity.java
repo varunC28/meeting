@@ -3,7 +3,11 @@ package com.cluely.meeting.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+
+import com.cluely.audio_chunks.entity.AudioChunkEntity;
 
 @Entity
 @Table(name = "meetings")
@@ -36,6 +40,13 @@ public class MeetingEntity {
     private boolean deleted = false;
 
     private LocalDateTime deletedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private MeetingStatus status = MeetingStatus.SCHEDULED;
+
+    @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL)
+    private List<AudioChunkEntity> audioChunks = new ArrayList<>();
 
     public UUID getMeetingId() {
         return meetingId;
@@ -108,4 +119,21 @@ public class MeetingEntity {
     public void setDeletedAt(LocalDateTime deletedAt) {
         this.deletedAt = deletedAt;
     }
+
+    public MeetingStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(MeetingStatus status) {
+        this.status = status;
+    }
+
+    public List<AudioChunkEntity> getAudioChunks() {
+        return audioChunks;
+    }
+
+    public void setAudioChunks(List<AudioChunkEntity> audioChunks) {
+        this.audioChunks = audioChunks;
+    }
+
 }

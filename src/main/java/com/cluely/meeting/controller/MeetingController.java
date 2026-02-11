@@ -4,9 +4,6 @@ import com.cluely.meeting.dto.MeetingCreateRequestDto;
 import com.cluely.meeting.dto.MeetingDashboardDto;
 import com.cluely.meeting.dto.MeetingResponseDto;
 import com.cluely.meeting.dto.MeetingUpdateRequestDto;
-import com.cluely.meeting.entity.MeetingEntity;
-import com.cluely.meeting.mapper.MeetingMapper;
-import com.cluely.meeting.repository.MeetingRepository;
 import com.cluely.meeting.service.MeetingService;
 
 import org.springframework.data.domain.Page;
@@ -19,15 +16,12 @@ import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import static com.cluely.security.SecurityUtils.getCurrentUserId;
-
 @RestController
 @RequestMapping("/meetings")
 @CrossOrigin(origins = "http://localhost:4200")
 public class MeetingController {
 
     private final MeetingService service;
-    private MeetingRepository repository;
 
     public MeetingController(MeetingService service) {
         this.service = service;
@@ -81,6 +75,20 @@ public class MeetingController {
     public MeetingResponseDto create(
             @Valid @RequestBody MeetingCreateRequestDto dto) {
         return service.createMeeting(dto);
+    }
+
+    // Start a meeting
+    @PostMapping("/{meetingId}/start")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void start(@PathVariable UUID meetingId) {
+        service.startMeeting(meetingId);
+    }
+
+    // End a meeting
+    @PostMapping("/{meetingId}/end")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void end(@PathVariable UUID meetingId) {
+        service.endMeeting(meetingId);
     }
 
 }

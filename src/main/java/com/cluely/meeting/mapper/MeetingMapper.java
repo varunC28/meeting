@@ -35,6 +35,7 @@ public class MeetingMapper {
         dto.setEndedAt(entity.getEndedAt());
         dto.setSource(entity.getSource());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setStatus(entity.getStatus());
 
         return dto;
     }
