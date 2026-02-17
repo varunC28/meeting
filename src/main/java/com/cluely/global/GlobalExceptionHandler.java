@@ -3,11 +3,17 @@ package com.cluely.global;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import com.cluely.audio_chunks.exception.DuplicateChunkException;
+import com.cluely.audio_chunks.exception.InvalidMeetingStateException;
+import com.cluely.audio_chunks.exception.StorageException;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -58,4 +64,35 @@ public class GlobalExceptionHandler {
                 "message", ex.getMessage());
     }
 
+    @ExceptionHandler(StorageException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleStorageException(StorageException ex) {
+        return Map.of(
+                "error", "STORAGE_ERROR",
+                "message", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateChunkException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> handleDuplicateChunk(DuplicateChunkException ex) {
+        return Map.of(
+                "error", "DUPLICATE_CHUNK",
+                "message", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidMeetingStateException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleInvalidMeetingState(InvalidMeetingStateException ex) {
+        return Map.of(
+                "error", "INVALID_MEETING_STATE",
+                "message", ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public Map<String, String> handleFileSizeLimitExceeded(MaxUploadSizeExceededException ex) {
+        return Map.of(
+                "error", "FILE_TOO_LARGE",
+                "message", "Chunk exceeds maximum size limit");
+    }
 }

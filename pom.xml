@@ -98,6 +98,12 @@
                 <version>0.11.5</version>
             </dependency>
 
+            <!-- FFmpeg Java Wrapper -->
+            <dependency>
+                <groupId>net.bramp.ffmpeg</groupId>
+                <artifactId>ffmpeg</artifactId>
+                <version>0.8.0</version>
+            </dependency>
 
 
     </dependencies>

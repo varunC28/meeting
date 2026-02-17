@@ -1,5 +1,7 @@
 package com.cluely.meeting.service;
 
+import com.cluely.audio_chunks.exception.InvalidMeetingStateException;
+import com.cluely.audio_chunks.service.ChunkProcessingService;
 import com.cluely.global.NotFoundException;
 import com.cluely.meeting.dto.MeetingCreateRequestDto;
 import com.cluely.meeting.dto.MeetingDashboardDto;
@@ -43,17 +45,20 @@ public class MeetingService {
         private final NoteRepository noteRepository;
         private final TranscriptRepository transcriptRepository;
         private final UserRepository userRepository;
+        private final ChunkProcessingService chunkProcessingService;
 
         public MeetingService(
                         MeetingRepository repository,
                         NoteRepository noteRepository,
                         TranscriptRepository transcriptRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        ChunkProcessingService chunkProcessingService) {
 
                 this.repository = repository;
                 this.noteRepository = noteRepository;
                 this.transcriptRepository = transcriptRepository;
                 this.userRepository = userRepository;
+                this.chunkProcessingService = chunkProcessingService;
         }
 
         // ✅ Filtering + pagination
@@ -191,6 +196,24 @@ public class MeetingService {
         }
 
         // End a Meeting
+        // public void endMeeting(UUID meetingId) {
+
+        // UUID userId = getCurrentUserId();
+
+        // MeetingEntity meeting = repository
+        // .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+        // .orElseThrow(() -> new NotFoundException("Meeting not found"));
+
+        // if (meeting.getStatus() != MeetingStatus.LIVE) {
+        // throw new IllegalStateException(
+        // "Only LIVE meetings can be completed. Current status: " +
+        // meeting.getStatus());
+        // }
+
+        // meeting.setStatus(MeetingStatus.COMPLETED);
+        // meeting.setEndedAt(LocalDateTime.now());
+        // }
+
         public void endMeeting(UUID meetingId) {
 
                 UUID userId = getCurrentUserId();
@@ -200,12 +223,15 @@ public class MeetingService {
                                 .orElseThrow(() -> new NotFoundException("Meeting not found"));
 
                 if (meeting.getStatus() != MeetingStatus.LIVE) {
-                        throw new IllegalStateException(
-                                        "Only LIVE meetings can be completed. Current status: " + meeting.getStatus());
+                        throw new InvalidMeetingStateException(
+                                        "Only LIVE meetings can be completed. Current status: " +
+                                                        meeting.getStatus());
                 }
 
-                meeting.setStatus(MeetingStatus.COMPLETED);
+                meeting.setStatus(MeetingStatus.PROCESSING);
                 meeting.setEndedAt(LocalDateTime.now());
+
+                chunkProcessingService.processMeetingChunksAsync(meeting);
         }
 
 }
