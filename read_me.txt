@@ -637,7 +637,7 @@ ffmpeg.path=C:/ffmpeg/bin/ffmpeg.exe
 ffprobe.path=C:/ffmpeg/bin/ffprobe.exe
 
 Groq API
-groq.api.key=gsk_your_key_here
+groq.api.key=your_key_here
 groq.api.url=https://api.groq.com/openai/v1/audio/transcriptions
 groq.whisper.model=whisper-large-v3-turbo
 groq.llm.url=https://api.groq.com/openai/v1/chat/completions
