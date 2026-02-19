@@ -1,5 +1,6 @@
 package com.cluely.meeting_processing.service;
 
+import com.cluely.ai.speech.service.TranscriptionService;
 import com.cluely.audio_chunks.entity.AudioChunkEntity;
 import com.cluely.meeting_processing.entity.ProcessedMeetingEntity;
 import com.cluely.meeting_processing.entity.ProcessingStatus;
@@ -30,14 +31,17 @@ public class ChunkAssemblyService {
     private static final Logger log = LoggerFactory.getLogger(ChunkAssemblyService.class);
 
     private final ProcessedMeetingRepository processedMeetingRepository;
+    private final TranscriptionService transcriptionService;
     private final FFmpeg ffmpeg;
     private final Path outputPath;
 
     public ChunkAssemblyService(
             ProcessedMeetingRepository processedMeetingRepository,
+            TranscriptionService transcriptionService,
             @Value("${ffmpeg.path}") String ffmpegPath,
             @Value("${cluely.storage.output-path}") String outputPath) throws IOException {
         this.processedMeetingRepository = processedMeetingRepository;
+        this.transcriptionService = transcriptionService;
         this.ffmpeg = new FFmpeg(ffmpegPath);
         this.outputPath = Paths.get(outputPath);
         Files.createDirectories(this.outputPath);
@@ -90,6 +94,12 @@ public class ChunkAssemblyService {
             log.info("Saving COMPLETED status...");
             ProcessedMeetingEntity saved = processedMeetingRepository.save(processed);
             log.info("Final save successful: {}", saved.getProcessedMeetingId());
+
+            // Step 6: Trigger full audio transcription (post-meeting pipeline)
+            transcriptionService.transcribeFullAudioAsync(
+                    saved.getMeetingId(),
+                    saved.getFullAudioPath());
+            log.info("Full audio transcription triggered for meeting: {}", meetingId);
 
             return saved;
 
