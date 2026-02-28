@@ -11,6 +11,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.annotation.Recover;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +42,10 @@ public class GroqAnalysisService implements AIAnalysisService {
     }
 
     @Override
+    @Retryable(retryFor = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2) // 1s,
+                                                                                                                 // 2s,
+                                                                                                                 // 4s
+    )
     public AnalysisResponseDTO analyzeMeeting(AnalysisRequestDTO request) {
         log.info("Starting AI analysis for meeting: {}", request.getMeetingId());
 
@@ -68,6 +75,14 @@ public class GroqAnalysisService implements AIAnalysisService {
             log.error("AI analysis failed for meeting: {}", request.getMeetingId(), e);
             throw new AnalysisException("Failed to analyze meeting transcript", e);
         }
+    }
+
+    @Recover
+    public AnalysisResponseDTO recoverAnalysis(
+            Exception e, AnalysisRequestDTO request) {
+        log.error("All 3 analysis attempts failed for meeting: {}. Error: {}",
+                request.getMeetingId(), e.getMessage());
+        throw new AnalysisException("Analysis failed after 3 attempts", e);
     }
 
     private String getSystemPrompt() {

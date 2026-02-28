@@ -11,14 +11,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.resilience.annotation.Retryable;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.retry.annotation.Recover;
 
 import java.util.Map;
@@ -56,12 +55,10 @@ public class GroqWhisperService implements SpeechToTextService {
         return callGroqAPI(request);
     }
 
-    // @Retryable(
-    // retryFor = { Exception.class },
-    // maxAttempts = 3,
-    // backoff = @Backoff(delay = 1000, multiplier = 2) // 1s, 2s, 4s
-    // )
-
+    @Retryable(retryFor = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2) // 1s,
+                                                                                                                 // 2s,
+                                                                                                                 // 4s
+    )
     private TranscriptionResponseDTO callGroqAPI(TranscriptionRequestDTO request) {
         // Build multipart form data
         MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
@@ -69,6 +66,13 @@ public class GroqWhisperService implements SpeechToTextService {
         formData.add("model", model);
         formData.add("language", request.getLanguage());
         formData.add("response_format", "verbose_json"); // Get timestamps + confidence
+        formData.add("temperature", "0"); // More accurate
+        formData.add("timestamp_granularities[]", "segment"); // Enable speaker timestamps
+
+        // Enable speaker diarization if requested
+        if (request.isDetectSpeakers()) {
+            formData.add("diarize", "true"); // Groq specific parameter
+        }
 
         try {
             // Call Groq API

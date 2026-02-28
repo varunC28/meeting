@@ -1,6 +1,8 @@
 package com.cluely.ai.speech.service;
 
 import com.cluely.ai.analysis.service.MeetingAnalysisService;
+import com.cluely.ai.realtime.ConversationContextManager;
+import com.cluely.ai.realtime.RealtimeAiService;
 import com.cluely.ai.speech.dto.TranscriptionRequestDTO;
 import com.cluely.ai.speech.dto.TranscriptionResponseDTO;
 import com.cluely.ai.speech.mapper.TranscriptionMapper;
@@ -9,6 +11,11 @@ import com.cluely.audio_chunks.entity.ChunkStatus;
 import com.cluely.audio_chunks.repository.AudioChunkRepository;
 import com.cluely.transcript.entity.TranscriptEntity;
 import com.cluely.transcript.repository.TranscriptRepository;
+import com.cluely.websocket.dto.TranscriptFragmentResponseDto;
+import com.cluely.websocket.mapper.WebSocketMapper;
+import com.cluely.websocket.service.WebSocketMessagingService;
+import com.cluely.ai.realtime.ConversationContextManager;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -28,18 +35,30 @@ public class TranscriptionService {
     private final TranscriptRepository transcriptRepository;
     private final AudioChunkRepository chunkRepository;
     private final MeetingAnalysisService meetingAnalysisService;
+    private final WebSocketMessagingService webSocketMessagingService;
+    private final WebSocketMapper webSocketMapper;
+    private final ConversationContextManager contextManager;
+    private final RealtimeAiService realtimeAiService;
 
     public TranscriptionService(
             SpeechToTextService speechToTextService,
             TranscriptionMapper transcriptionMapper,
             TranscriptRepository transcriptRepository,
             AudioChunkRepository chunkRepository,
-            MeetingAnalysisService meetingAnalysisService) {
+            MeetingAnalysisService meetingAnalysisService,
+            WebSocketMessagingService webSocketMessagingService,
+            WebSocketMapper webSocketMapper,
+            ConversationContextManager contextManager,
+            RealtimeAiService realtimeAiService) {
         this.speechToTextService = speechToTextService;
         this.transcriptionMapper = transcriptionMapper;
         this.transcriptRepository = transcriptRepository;
         this.chunkRepository = chunkRepository;
         this.meetingAnalysisService = meetingAnalysisService;
+        this.webSocketMessagingService = webSocketMessagingService;
+        this.webSocketMapper = webSocketMapper;
+        this.contextManager = contextManager;
+        this.realtimeAiService = realtimeAiService;
     }
 
     /**
@@ -61,6 +80,8 @@ public class TranscriptionService {
                     Paths.get(chunk.getFilePath()),
                     chunk.getSequenceNumber());
 
+            request.setDetectSpeakers(true);
+
             // Call Groq Whisper
             TranscriptionResponseDTO response = speechToTextService.transcribeChunk(request);
 
@@ -80,6 +101,19 @@ public class TranscriptionService {
             TranscriptEntity transcript = transcriptionMapper.toEntity(response);
             transcriptRepository.save(transcript);
             log.info("Saved transcript fragment for chunk: {}", chunkId);
+
+            // Send via WebSocket
+            TranscriptFragmentResponseDto wsMessage = webSocketMapper.toResponse(transcript);
+            webSocketMessagingService.sendTranscriptFragment(wsMessage);
+
+            // Add to conversation context for AI analysis
+            contextManager.addTranscript(chunk.getMeeting().getMeetingId(), transcript);
+
+            // Analyze for real-time suggestions
+            realtimeAiService.analyzeAndSuggest(
+                    chunk.getMeeting().getMeetingId(),
+                    chunk.getMeeting().getUserId(),
+                    transcript);
 
             // Update chunk status
             chunk.setStatus(ChunkStatus.PROCESSED);

@@ -122,6 +122,26 @@
                 <artifactId>spring-aspects</artifactId>
             </dependency>
 
+            <!-- WebSocket -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-websocket</artifactId>
+            </dependency>
+
+            <!-- SockJS (fallback if WebSocket not supported) -->
+            <dependency>
+                <groupId>org.webjars</groupId>
+                <artifactId>sockjs-client</artifactId>
+                <version>1.5.1</version>
+            </dependency>
+
+            <!-- STOMP messaging -->
+            <dependency>
+                <groupId>org.webjars</groupId>
+                <artifactId>stomp-websocket</artifactId>
+                <version>2.3.4</version>
+            </dependency>
+
 
     </dependencies>
 
