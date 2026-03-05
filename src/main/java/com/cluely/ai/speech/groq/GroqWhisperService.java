@@ -43,6 +43,7 @@ public class GroqWhisperService implements SpeechToTextService {
     }
 
     @Override
+    @Retryable(retryFor = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public TranscriptionResponseDTO transcribeChunk(TranscriptionRequestDTO request) {
         log.info("Transcribing chunk {} for meeting: {}",
                 request.getSequenceNumber(), request.getMeetingId());
@@ -50,15 +51,12 @@ public class GroqWhisperService implements SpeechToTextService {
     }
 
     @Override
+    @Retryable(retryFor = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public TranscriptionResponseDTO transcribeFullAudio(TranscriptionRequestDTO request) {
         log.info("Transcribing full audio for meeting: {}", request.getMeetingId());
         return callGroqAPI(request);
     }
 
-    @Retryable(retryFor = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2) // 1s,
-                                                                                                                 // 2s,
-                                                                                                                 // 4s
-    )
     private TranscriptionResponseDTO callGroqAPI(TranscriptionRequestDTO request) {
         // Build multipart form data
         MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();

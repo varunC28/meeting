@@ -15,6 +15,7 @@ import com.cluely.websocket.dto.TranscriptFragmentResponseDto;
 import com.cluely.websocket.mapper.WebSocketMapper;
 import com.cluely.websocket.service.WebSocketMessagingService;
 import com.cluely.ai.realtime.ConversationContextManager;
+import com.cluely.ai.realtime.QuestionDetectionService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ public class TranscriptionService {
     private final WebSocketMapper webSocketMapper;
     private final ConversationContextManager contextManager;
     private final RealtimeAiService realtimeAiService;
+    private final QuestionDetectionService questionDetectionService;
 
     public TranscriptionService(
             SpeechToTextService speechToTextService,
@@ -49,7 +51,8 @@ public class TranscriptionService {
             WebSocketMessagingService webSocketMessagingService,
             WebSocketMapper webSocketMapper,
             ConversationContextManager contextManager,
-            RealtimeAiService realtimeAiService) {
+            RealtimeAiService realtimeAiService,
+            QuestionDetectionService questionDetectionService) {
         this.speechToTextService = speechToTextService;
         this.transcriptionMapper = transcriptionMapper;
         this.transcriptRepository = transcriptRepository;
@@ -59,6 +62,7 @@ public class TranscriptionService {
         this.webSocketMapper = webSocketMapper;
         this.contextManager = contextManager;
         this.realtimeAiService = realtimeAiService;
+        this.questionDetectionService = questionDetectionService;
     }
 
     /**
@@ -67,6 +71,7 @@ public class TranscriptionService {
     @Async
     @Transactional
     public void transcribeChunkAsync(UUID chunkId) {
+
         log.info("Starting transcription for chunk: {}", chunkId);
 
         AudioChunkEntity chunk = chunkRepository.findById(chunkId)

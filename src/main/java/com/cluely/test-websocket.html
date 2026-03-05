@@ -53,6 +53,18 @@
                         addMessage('📝 ' + JSON.stringify(data, null, 2));
                     });
 
+                    // Subscribe to AI suggestions (ADD THIS)
+                    stompClient.subscribe('/user/queue/suggestions', function (message) {
+                        const data = JSON.parse(message.body);
+                        addMessage('💡 AI SUGGESTION: ' + JSON.stringify(data, null, 2));
+                    });
+
+                    // Subscribe to action items (ADD THIS)
+                    stompClient.subscribe('/user/queue/action-items', function (message) {
+                        const data = JSON.parse(message.body);
+                        addMessage('⚠️ ACTION ITEM: ' + JSON.stringify(data, null, 2));
+                    });
+
                     addMessage('📡 Subscribed to meeting: ' + meetingId);
                 },
                 function (error) {

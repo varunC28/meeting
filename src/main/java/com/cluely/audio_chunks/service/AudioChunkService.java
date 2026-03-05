@@ -15,6 +15,8 @@ import com.cluely.meeting.entity.MeetingStatus;
 import com.cluely.meeting.repository.MeetingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -25,89 +27,95 @@ import java.util.UUID;
 @Transactional
 public class AudioChunkService {
 
-    private final AudioChunkRepository chunkRepository;
-    private final MeetingRepository meetingRepository;
-    private final FileStorageService fileStorageService;
-    private final AudioChunkMapper mapper;
-    private final TranscriptionService transcriptionService;
+        private final AudioChunkRepository chunkRepository;
+        private final MeetingRepository meetingRepository;
+        private final FileStorageService fileStorageService;
+        private final AudioChunkMapper mapper;
+        private final TranscriptionService transcriptionService;
 
-    public AudioChunkService(
-            AudioChunkRepository chunkRepository,
-            MeetingRepository meetingRepository,
-            FileStorageService fileStorageService,
-            AudioChunkMapper mapper,
-            TranscriptionService transcriptionService) {
-        this.chunkRepository = chunkRepository;
-        this.meetingRepository = meetingRepository;
-        this.fileStorageService = fileStorageService;
-        this.mapper = mapper;
-        this.transcriptionService = transcriptionService;
-    }
-
-    public AudioChunkResponseDTO uploadChunk(UUID meetingId, Integer sequenceNumber,
-            MultipartFile file, UUID userId) {
-        // 1. Verify meeting exists and belongs to user
-        MeetingEntity meeting = meetingRepository
-                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
-                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
-
-        // 2. Verify meeting is in LIVE status
-        if (meeting.getStatus() != MeetingStatus.LIVE) {
-            throw new InvalidMeetingStateException(
-                    "Meeting must be LIVE to accept chunks. Current status: "
-                            + meeting.getStatus());
+        public AudioChunkService(
+                        AudioChunkRepository chunkRepository,
+                        MeetingRepository meetingRepository,
+                        FileStorageService fileStorageService,
+                        AudioChunkMapper mapper,
+                        TranscriptionService transcriptionService) {
+                this.chunkRepository = chunkRepository;
+                this.meetingRepository = meetingRepository;
+                this.fileStorageService = fileStorageService;
+                this.mapper = mapper;
+                this.transcriptionService = transcriptionService;
         }
 
-        // 3. Check for duplicate chunk
-        if (chunkRepository.existsByMeetingIdAndSequenceNumber(meetingId, sequenceNumber)) {
-            throw new DuplicateChunkException(
-                    "Chunk with sequence number " + sequenceNumber + " already exists");
+        public AudioChunkResponseDTO uploadChunk(UUID meetingId, Integer sequenceNumber,
+                        MultipartFile file, UUID userId) {
+                // 1. Verify meeting exists and belongs to user
+                MeetingEntity meeting = meetingRepository
+                                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+                                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
+
+                // 2. Verify meeting is in LIVE status
+                if (meeting.getStatus() != MeetingStatus.LIVE) {
+                        throw new InvalidMeetingStateException(
+                                        "Meeting must be LIVE to accept chunks. Current status: "
+                                                        + meeting.getStatus());
+                }
+
+                // 3. Check for duplicate chunk
+                if (chunkRepository.existsByMeetingIdAndSequenceNumber(meetingId, sequenceNumber)) {
+                        throw new DuplicateChunkException(
+                                        "Chunk with sequence number " + sequenceNumber + " already exists");
+                }
+
+                // 4. Store file on disk
+                String filePath = fileStorageService.storeChunk(meetingId, sequenceNumber, file);
+
+                // 5. Create and save entity
+                AudioChunkEntity chunk = new AudioChunkEntity();
+                chunk.setMeeting(meeting);
+                chunk.setSequenceNumber(sequenceNumber);
+                chunk.setFilePath(filePath);
+                chunk.setSizeBytes(file.getSize());
+                chunk.setCreatedAt(LocalDateTime.now());
+                chunk.setStatus(ChunkStatus.UPLOADED);
+                chunk.setMimeType(file.getContentType());
+
+                long estimatedDurationMs = (file.getSize() / 16000) * 1000;
+                chunk.setDurationMs((int) estimatedDurationMs);
+
+                AudioChunkEntity saved = chunkRepository.save(chunk);
+
+                // 6. Trigger async transcription AFTER transaction commits
+                // (avoids race condition where async thread can't find the chunk)
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                                transcriptionService.transcribeChunkAsync(saved.getChunkId());
+                        }
+                });
+
+                return mapper.toResponseDTO(saved);
         }
 
-        // 4. Store file on disk
-        String filePath = fileStorageService.storeChunk(meetingId, sequenceNumber, file);
+        @Transactional(readOnly = true)
+        public List<AudioChunkResponseDTO> getChunksForMeeting(UUID meetingId, UUID userId) {
+                meetingRepository.findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+                                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
 
-        // 5. Create and save entity
-        AudioChunkEntity chunk = new AudioChunkEntity();
-        chunk.setMeeting(meeting);
-        chunk.setSequenceNumber(sequenceNumber);
-        chunk.setFilePath(filePath);
-        chunk.setSizeBytes(file.getSize());
-        chunk.setCreatedAt(LocalDateTime.now());
-        chunk.setStatus(ChunkStatus.UPLOADED);
-        chunk.setMimeType(file.getContentType());
+                List<AudioChunkEntity> chunks = chunkRepository
+                                .findByMeetingIdOrderBySequenceNumberAsc(meetingId);
+                return mapper.toResponseDTOList(chunks);
+        }
 
-        long estimatedDurationMs = (file.getSize() / 16000) * 1000;
-        chunk.setDurationMs((int) estimatedDurationMs);
+        @Transactional(readOnly = true)
+        public ChunkProgressResponseDTO getProgress(UUID meetingId, UUID userId) {
+                MeetingEntity meeting = meetingRepository
+                                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
+                                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
 
-        AudioChunkEntity saved = chunkRepository.save(chunk);
+                long totalChunks = chunkRepository.countByMeetingIdAndStatus(
+                                meetingId, ChunkStatus.UPLOADED);
+                Integer maxSequence = chunkRepository.findMaxSequenceNumber(meetingId).orElse(0);
 
-        // 6. Trigger async transcription (real-time pipeline)
-        transcriptionService.transcribeChunkAsync(saved.getChunkId());
-
-        return mapper.toResponseDTO(saved);
-    }
-
-    @Transactional(readOnly = true)
-    public List<AudioChunkResponseDTO> getChunksForMeeting(UUID meetingId, UUID userId) {
-        meetingRepository.findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
-                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
-
-        List<AudioChunkEntity> chunks = chunkRepository
-                .findByMeetingIdOrderBySequenceNumberAsc(meetingId);
-        return mapper.toResponseDTOList(chunks);
-    }
-
-    @Transactional(readOnly = true)
-    public ChunkProgressResponseDTO getProgress(UUID meetingId, UUID userId) {
-        MeetingEntity meeting = meetingRepository
-                .findByMeetingIdAndUserIdAndDeletedFalse(meetingId, userId)
-                .orElseThrow(() -> new NotFoundException("Meeting not found or access denied"));
-
-        long totalChunks = chunkRepository.countByMeetingIdAndStatus(
-                meetingId, ChunkStatus.UPLOADED);
-        Integer maxSequence = chunkRepository.findMaxSequenceNumber(meetingId).orElse(0);
-
-        return mapper.toProgressDTO(totalChunks, maxSequence, meeting.getStatus());
-    }
+                return mapper.toProgressDTO(totalChunks, maxSequence, meeting.getStatus());
+        }
 }

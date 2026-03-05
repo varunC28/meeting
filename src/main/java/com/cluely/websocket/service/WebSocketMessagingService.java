@@ -34,8 +34,7 @@ public class WebSocketMessagingService {
      * Send AI suggestion to specific user
      */
     public void sendAiSuggestion(UUID userId, AiSuggestionResponseDto dto) {
-        String destination = "/user/" + userId + "/queue/suggestions";
-        messagingTemplate.convertAndSend(destination, dto);
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/suggestions", dto);
         log.info("Sent AI suggestion to user: {}", userId);
     }
 
@@ -43,8 +42,7 @@ public class WebSocketMessagingService {
      * Send action item detection to specific user
      */
     public void sendActionItemDetected(UUID userId, ActionItemDetectedResponseDto dto) {
-        String destination = "/user/" + userId + "/queue/action-items";
-        messagingTemplate.convertAndSend(destination, dto);
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/action-items", dto);
         log.info("Sent action item to user: {}", userId);
     }
 

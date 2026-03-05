@@ -11,16 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.retry.annotation.Retryable;
-import org.springframework.retry.annotation.Backoff;
 import java.util.Map;
 
 import java.util.List;
@@ -71,10 +63,15 @@ public class RealtimeAiService {
     }
 
     /**
-     * Analyze transcript in real-time and generate suggestions
+     * Analyze transcript in real-time and generate suggestions.
+     * NOTE: Not @Async because it's called from
+     * TranscriptionService.transcribeChunkAsync()
+     * which is already @Async.
      */
-    @Async
     public void analyzeAndSuggest(UUID meetingId, UUID userId, TranscriptEntity transcript) {
+        log.info("=== analyzeAndSuggest called for meeting: {}, text: {}",
+                meetingId, transcript.getText());
+
         String text = transcript.getText();
 
         // Check if it's a question
@@ -87,7 +84,7 @@ public class RealtimeAiService {
     /**
      * Generate answer to user's question
      */
-    private void generateQuestionAnswer(UUID meetingId, UUID userId, String question) {
+    public void generateQuestionAnswer(UUID meetingId, UUID userId, String question) {
         try {
             // 1. Get recent conversation context
             String context = contextManager.getContextAsText(meetingId);
@@ -143,7 +140,6 @@ public class RealtimeAiService {
         return prompt.toString();
     }
 
-    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     private String callAiForAnswer(String prompt) {
         try {
             Map<String, Object> requestBody = Map.of(
